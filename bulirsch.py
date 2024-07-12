@@ -4,6 +4,26 @@ import jax.numpy as jnp
 @jax.jit
 @jnp.vectorize
 def el1(x, kc):
+    r"""JAX implementation of Bulirsch's el1 integral
+
+    Computed using the algorithm in Bulirsch, 1969b: https://doi.org/10.1007/BF02165405 
+
+    .. math::
+
+        \[\operatorname{el1}\left(x,k_{c}\right)=\int_{0}^{\operatorname{arctan}x}\frac{%
+1}{\sqrt{{\cos}^{2}\theta+k_{c}^{2}{\sin}^{2}\theta}}\,\mathrm{d}\theta,\]
+
+     Args:
+       x: arraylike, real valued.
+       kc: arraylike, real valued.
+
+     Returns:
+       The value of the integral el1
+
+     Notes:
+       ``el1`` does not support complex-valued inputs.
+       ``el1`` requires `jax.config.update("jax_enable_x64", True)`
+    """
 
     D = 15.0
     ca = 10.0**(-D / 2.0)
@@ -67,6 +87,29 @@ def el1(x, kc):
 @jax.jit 
 @jnp.vectorize
 def el2(x, kc, a, b):
+    r"""JAX implementation of Bulirsch's el2 integral
+
+    Computed using the algorithm in Bulirsch, 1969b: https://doi.org/10.1007/BF02165405 
+
+    .. math::
+
+       \[\operatorname{el2}\left(x,k_{c},a,b\right)=\int_{0}^{\operatorname{arctan}x}%
+\frac{a+b{\tan}^{2}\theta}{\sqrt{(1+{\tan}^{2}\theta)(1+k_{c}^{2}{\tan}^{2}%
+\theta)}}\,\mathrm{d}\theta.\]
+
+     Args:
+       x: arraylike, real valued.
+       kc: arraylike, real valued.
+       a: arraylike, real valued.
+       b: arraylike, real valued.
+
+     Returns:
+       The value of the integral el2
+
+     Notes:
+       ``el2`` does not support complex-valued inputs.
+       ``el2`` requires `jax.config.update("jax_enable_x64", True)`
+    """
 
     D = 15.0
     ca = 10**(-D / 2.0)
@@ -160,6 +203,28 @@ def el2(x, kc, a, b):
 @jax.jit 
 @jnp.vectorize
 def el3(x, kc, p):
+    r"""JAX implementation of Bulirsch's el3 integral
+
+    Computed using the algorithm in Bulirsch, 1969b: https://doi.org/10.1007/BF02165405 
+
+    .. math::
+
+       \[\operatorname{el3}\left(x,k_{c},p\right)=\int_{0}^{\operatorname{arctan}x}%
+\frac{\,\mathrm{d}\theta}{({\cos}^{2}\theta+p{\sin}^{2}\theta)\sqrt{{\cos}^{2}%
+\theta+k_{c}^{2}{\sin}^{2}\theta}}=\Pi\left(\operatorname{arctan}x,1-p,k\right),\]
+
+     Args:
+       x: arraylike, real valued.
+       kc: arraylike, real valued.
+       p: arraylike, real valued.
+
+     Returns:
+       The value of the integral el3
+
+     Notes:
+       ``el3`` does not support complex-valued inputs.
+       ``el3`` requires `jax.config.update("jax_enable_x64", True)`
+    """
 
     cD = 15
     ca = 10**(-cD / 2.0)
@@ -482,6 +547,30 @@ def el3(x, kc, p):
 @jax.jit
 @jnp.vectorize
 def cel(kc, p, a, b):
+    r"""JAX implementation of Bulirsch's general complete elliptic integral
+
+    Computed using the algorithm in Bulirsch, 1969b: https://doi.org/10.1007/BF02165405
+
+    .. math::
+
+       \[\operatorname{cel}\left(k_{c},p,a,b\right)=\int_{0}^{\pi/2}\frac{a{\cos}^{2}%
+\theta+b{\sin}^{2}\theta}{{\cos}^{2}\theta+p{\sin}^{2}\theta}\frac{\,\mathrm{d%
+}\theta}{\sqrt{{\cos}^{2}\theta+k_{c}^{2}{\sin}^{2}\theta}},\]
+
+     Args:
+       x: arraylike, real valued.
+       kc: arraylike, real valued.
+       p: arraylike, real valued.
+       a: arraylike, real valued.
+       b: arraylike, real valued.
+
+     Returns:
+       The value of cel, the Bulirsch general complete elliptic integral
+
+     Notes:
+       ``cel`` does not support complex-valued inputs.
+       ``cel`` requires `jax.config.update("jax_enable_x64", True)`
+    """
 
     CA = 1.0e-7
     kc = jnp.abs(kc)
