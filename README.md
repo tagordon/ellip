@@ -11,7 +11,7 @@ JAX implementations of various elliptic integrals.
 
 ## Carlson integrals
 
-* $$R_\mathrm{F}$$
-* $$R_\mathrm{C}$$
-* $$R_\mathrm{J}$$
-* $$R_\mathrmDf}$$
+* $R_\mathrm{F}$
+* $R_\mathrm{C}$
+* $R_\mathrm{J}$
+* $R_\mathrm{D}$
