@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 
+@jax.custom_jvp
 @jax.jit
 @jnp.vectorize
 def el1(x, kc):
@@ -84,6 +85,7 @@ def el1(x, kc):
 
     return e
 
+@jax.custom_jvp
 @jax.jit 
 @jnp.vectorize
 def el2(x, kc, a, b):
@@ -200,6 +202,7 @@ def el2(x, kc, a, b):
 
     return e
 
+@jax.custom_jvp
 @jax.jit 
 @jnp.vectorize
 def el3(x, kc, p):
@@ -544,6 +547,7 @@ def el3(x, kc, p):
     
     return  jax.lax.cond(cond, goto1, continue1, S)
 
+@jax.custom_jvp
 @jax.jit
 @jnp.vectorize
 def cel(kc, p, a, b):
@@ -634,3 +638,46 @@ def cel(kc, p, a, b):
     S = goto1(S)
     S = jax.lax.while_loop(cond_func, body_func, S)
     return jnp.pi * 0.5 * ((S['a'] * S['m'] + S['b']) / (S['m'] * (S['m'] + S['p'])))
+
+@el1.defjvp
+def el1_jvp(primals, tangents):
+
+    x, kc = primals
+    x_dot, kc_dot = tangents 
+
+    k = jnp.sqrt(1 - kc**2)
+    cosphi = 1 / jnp.sqrt(1 + x**2)
+    sinphi = x * cosphi
+    dx = 1 / (jnp.sqrt(1 - k**2 * sinphi**2) * (1 + x**2))
+
+    E = el2(x, kc, 1.0, kc**2)
+    F = el1(x, kc)
+    dk = -(
+        (E - kc**2 * F) / (k * kc) 
+        - k * sinphi * cosphi / (kc * jnp.sqrt(1 - k * k * sinphi**2))
+    ) / k
+
+    return F, dx * x_dot + dk * kc_dot
+
+@el2.defjvp
+def el2_jvp(primals, tangents):
+
+    x, kc, a, b = primals
+    x_dot, kc_dot, a_dot, b_dot = tangents 
+
+    k = jnp.sqrt(1 - kc**2)
+    cosphi = 1 / jnp.sqrt(1 + x**2)
+    sinphi = x * cosphi
+    rad = jnp.sqrt(1 - k**2 * sinphi**2)
+    dx = ((a - b) / k**2 * (rad - 1 / rad) + a / rad) / (1 + x**2)
+
+    E = el2(x, kc, 1.0, kc**2)
+    F = el1(x, kc)
+    da = F + (E - F) / k**2
+    db = (F - E) / k**2
+
+    fac = k**2 * sinphi * cosphi / rad
+    dk = (b - a) / k**3 * ((1 + 1 / kc**2) * E - 2 * F - fac / kc**2) + (a / (k * kc**2)) * (E - kc**2 * F - fac)
+    dk = -kc * dk / k
+
+    return el2(x, kc, a, b), dx * x_dot + dk * kc_dot + da * a_dot + db * b_dot
