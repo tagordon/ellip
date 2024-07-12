@@ -30,4 +30,5 @@ Note: The Legendre forms are computed directly from the Bulirsch integrals using
 
 ## References
 [1] [Bulirsch, 1969b](https://doi.org/10.1007/BF02165405)
+
 [2] [Carlson, 1994](https://arxiv.org/pdf/math/9409227)
