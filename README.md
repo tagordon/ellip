@@ -25,3 +25,9 @@ JAX implementations of various elliptic integrals.
 * $F(\phi, k)$: incomplete elliptic integral of the first kind
 * $E(\phi, k)$: incomplete elliptic integral of the second kind
 * $\Pi(\phi, k, n)$: incomplete elliptic integral of the third kind
+
+Note: The Legendre forms are computed directly from the Bulirsch integrals using the relations found in [1]. For most use cases, it will be more efficient to use the Bulirsch integrals directly rather than the Legendre forms. 
+
+## References
+[1] [Bulirsch, 1969b](https://doi.org/10.1007/BF02165405)
+[2] [Carlson, 1994](https://arxiv.org/pdf/math/9409227)
