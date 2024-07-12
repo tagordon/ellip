@@ -2,6 +2,8 @@
 
 JAX implementations of various elliptic integrals. 
 
+Note: Currently only compatible with forward-mode autodifferentiation. 
+
 ## Bulirsch integrals
 
 * $el1(x, k_c)$: incomplete elliptic integral of the first kind
