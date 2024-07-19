@@ -97,7 +97,7 @@ def ellipfinc(phi, k):
        ``ellipfinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.arctan(phi)
+    x = jnp.tan(phi)
     kc = jnp.sqrt((1 - k) * (1 + k))
     return el1(x, kc)
 
@@ -123,7 +123,7 @@ def ellipeinc(phi, k):
        ``ellipeinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.arctan(phi)
+    x = jnp.tan(phi)
     kc = jnp.sqrt((1 - k) * (1 + k))
     return el2(x, kc, 1.0, kc * kc)
 
@@ -150,6 +150,7 @@ def ellippiinc(phi, k, n):
        ``ellippiinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.arctan(phi)
+    x = jnp.tan(phi)
     kc = jnp.sqrt((1 - k) * (1 + k))
+    p = n + 1
     return el3(x, kc, p)

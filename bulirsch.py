@@ -410,7 +410,9 @@ def el3(x, kc, p):
 
             def bk_false(S):
 
-                # not totally sure here
+                # this function is a problem because 
+                # jax doesn't differentiate the mantissa. 
+                # handled with custom vjp. 
                 S['z'], S['k'] = jnp.frexp(S['z'])
                 S['k'] = 1.0 * S['k']
                 S['m'] = S['m'] + S['k']
@@ -655,7 +657,7 @@ def el1_jvp(primals, tangents):
     dk = -(
         (E - kc**2 * F) / (k * kc) 
         - k * sinphi * cosphi / (kc * jnp.sqrt(1 - k * k * sinphi**2))
-    ) / k
+    ) / k 
 
     return F, dx * x_dot + dk * kc_dot
 
@@ -665,19 +667,62 @@ def el2_jvp(primals, tangents):
     x, kc, a, b = primals
     x_dot, kc_dot, a_dot, b_dot = tangents 
 
-    k = jnp.sqrt(1 - kc**2)
+    k2 = 1 - kc**2
+    kc2 = kc * kc
+    k = jnp.sqrt(k2)
+    cosphi = 1 / jnp.sqrt(1 + x**2)
+    sinphi = x * cosphi
+    rad = jnp.sqrt(1 - k2 * sinphi**2)
+    dx = ((a - b) / k2 * (rad - 1 / rad) + a / rad) / (1 + x**2)
+
+    E = el2(x, kc, 1.0, kc2)
+    F = el1(x, kc)
+    da = F + (E - F) / k2
+    db = (F - E) / k2
+
+    fac = k**2 * sinphi * cosphi / rad
+    dk = (b - a) / k2 * ((1 + 1 / kc2) * E - 2 * F - fac / kc2) + (a / kc2) * (E - kc2 * F - fac)
+    dk = -kc * dk
+
+    return el2(x, kc, a, b), dx * x_dot + dk * kc_dot + da * a_dot + db * b_dot
+
+@el3.defjvp
+def el3_jvp(primals, tangents):
+
+    x, kc, p = primals
+    x_dot, kc_dot, p_dot = tangents 
+
+    # note that 1 - p instead of p -1 
+    # is intentional here, since the sign of n 
+    # is flipped between the def. of 
+    # Pi in Bulirsch 1969 compared to the 
+    # standard definnition. 
+    n = 1 - p
+    k2 = 1 - kc**2
+    kc2 = kc * kc
+    k = jnp.sqrt(k2)
     cosphi = 1 / jnp.sqrt(1 + x**2)
     sinphi = x * cosphi
     rad = jnp.sqrt(1 - k**2 * sinphi**2)
-    dx = ((a - b) / k**2 * (rad - 1 / rad) + a / rad) / (1 + x**2)
-
-    E = el2(x, kc, 1.0, kc**2)
+    dx = 1 / (rad * (1 - n * sinphi**2) * (1 + x**2))
+    
+    E = el2(x, kc, 1.0, kc2)
     F = el1(x, kc)
-    da = F + (E - F) / k**2
-    db = (F - E) / k**2
+    Pi = el3(x, kc, p)
+    
+    fac = k2 * sinphi * cosphi / rad
+    dk = -kc * (-E / kc2 + Pi + fac / kc2) / (n - k2)
+    
+    dn = (
+        E + (k2 - n) * F / n 
+        + (n - k) * (n + k) * Pi / n 
+        + n * cosphi * sinphi * rad / (n * sinphi**2 - 1)
+    ) / (2 * (k2 - n) * (n - 1))
 
-    fac = k**2 * sinphi * cosphi / rad
-    dk = (b - a) / k**3 * ((1 + 1 / kc**2) * E - 2 * F - fac / kc**2) + (a / (k * kc**2)) * (E - kc**2 * F - fac)
-    dk = -kc * dk / k
+    return Pi, dx * x_dot + dk * kc_dot + dn * p_dot
+    
+@el3.defjvp
+def cel_jvp(primals, tangents):  
 
-    return el2(x, kc, a, b), dx * x_dot + dk * kc_dot + da * a_dot + db * b_dot
+    kc, p, a, b = primals
+    kc_dot, p_dot, a_dot, b_dot = tangents
