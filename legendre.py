@@ -48,7 +48,7 @@ def ellipe(k):
     """
 
     kc = jnp.sqrt((1 - k) * (1 + k))
-    return cel(kc, 1.0, 1.0, k**2)
+    return cel(kc, 1.0, 1.0, kc**2)
 
 @jax.jit
 @jnp.vectorize
