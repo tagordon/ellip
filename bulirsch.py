@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
 
+maxiter = 6
+
 @jax.custom_jvp
 @jax.jit
 @jnp.vectorize
@@ -40,7 +42,8 @@ def el1(x, kc):
             'e': m * kc, 
             'g': m, 'm': kc + m, 
             'y': -(m * kc / y) + y, 
-            'kc': kc, 'l': 0.0
+            'kc': kc, 'l': 0.0,
+            'iter': 0
         }
         s['y'] = jax.lax.cond(
             s['y'] == 0, 
@@ -50,7 +53,7 @@ def el1(x, kc):
 
         def cond_fun(s):
             
-            return jnp.abs(s['g'] - s['kc']) > ca * s['g']
+            return (jnp.abs(s['g'] - s['kc']) > ca * s['g']) & (s['iter'] < maxiter)
 
         def body_fun(s):
             
@@ -67,6 +70,7 @@ def el1(x, kc):
                 lambda: jnp.sqrt(s['e']) * cb, 
                 lambda: s['y']
             )
+            s['iter'] += 1
 
             return s
 
@@ -146,7 +150,8 @@ def el2(x, kc, a, b):
             'm': kc + m,
             'a': ((ik * kc + b) / (kc + m) + a) * 0.5,
             'y': - (m * kc / y) + y,
-            'kc': kc
+            'kc': kc,
+            'iter': 0
         }
         
         s['y'] = jax.lax.cond(
@@ -157,7 +162,7 @@ def el2(x, kc, a, b):
 
         def cond_fun(s):
             
-            return jnp.abs(s['g'] - s['kc']) > ca * s['g']
+            return (jnp.abs(s['g'] - s['kc']) > ca * s['g']) & (s['iter'] < maxiter)
 
         def body_fun(s):
 
@@ -182,6 +187,7 @@ def el2(x, kc, a, b):
                 lambda: jnp.sqrt(s['e']) * cb, 
                 lambda: s['y']
             )
+            s['iter'] += 1
 
             return s
 
@@ -267,7 +273,8 @@ def el3(x, kc, p):
         'n': 0.0,
         'bo': 0.0,
         'bk': 0,
-        'k': 0.0
+        'k': 0.0,
+        'iter': 0
     }
     
     S['t'] = S['s'] * S['s']
@@ -445,7 +452,7 @@ def el3(x, kc, p):
 
         def cond_func(S):
 
-            return jnp.abs(S['g'] - S['s']) > ca * S['g']
+            return (jnp.abs(S['g'] - S['s']) > ca * S['g']) & (S['iter'] < maxiter)
 
         def body_func(S):
 
@@ -591,6 +598,7 @@ def cel(kc, p, a, b):
         'g': 0.0,
         'a': a,
         'kc': kc,
+        'iter': 0
     }
 
     def p_gt_0(S):
@@ -627,7 +635,7 @@ def cel(kc, p, a, b):
 
     def cond_func(S):
 
-        return jnp.abs(S['g'] - S['kc']) > S['g'] * CA
+        return (jnp.abs(S['g'] - S['kc']) > S['g'] * CA) & (S['iter'] < maxiter)
 
     def body_func(S):
 
@@ -709,10 +717,12 @@ def el3_jvp(primals, tangents):
     E = el2(x, kc, 1.0, kc2)
     F = el1(x, kc)
     Pi = el3(x, kc, p)
-    
+
+    # potential issues with k^2 = n
     fac = k2 * sinphi * cosphi / rad
     dk = -kc * (-E / kc2 + Pi + fac / kc2) / (n - k2)
-    
+
+    # potential issues with k^2 = n and n = 1
     dn = (
         E + (k2 - n) * F / n 
         + (n - k) * (n + k) * Pi / n 
