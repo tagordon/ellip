@@ -720,9 +720,80 @@ def el3_jvp(primals, tangents):
     ) / (2 * (k2 - n) * (n - 1))
 
     return Pi, dx * x_dot + dk * kc_dot + dn * p_dot
+
+def cel_dp_general(kc, p, a, b, db):
+
+    lam = kc * kc * (b + a * p - 2 * b * p) + p * (3 * b * p - a * p**2 - 2*b)
+    dp = lam * db + (b - a * p) * cel(kc, 1.0, 1.0 - p, kc * kc - p)
+    return  dp / (2 * p * (1 - p) * (p - kc * kc))
+
+# p = 1 case
+def cel_dp_singular(kc, p, a, b, db):
+
+    ap = (a - b) * (kc**2 - 1)
+    bp = - ((kc**2 - 1) * (-3 * b + (a + 2 * b) * kc**2))
+    return cel(kc, 1.0, ap, bp) / (3 * (kc**2 - 1)**2)
+
+def cel_dk_dp_general(kc, p, a, b, da, db, C, tol):
+
+    dk = -kc / (p - kc * kc) * (cel(kc, kc**2, a, b) - C)
+
+    dp = jax.lax.cond(
+        jnp.abs(p - 1.0) < tol, 
+        cel_dp_singular, 
+        cel_dp_general, 
+        kc, p, a, b, db
+    )
     
-@el3.defjvp
+    return dk, dp
+
+# kc^2 = p case 
+def cel_dk_dp_singular(kc, p, a, b, da, db, C, tol):
+
+    ap = 4 * (kc**2 - 1) * (2 * b + (a - 3 * b) * kc**2)
+    bp = 4 * kc**2 * (kc**2 - 1) * (b - a * kc**2)
+    fac = -1 / (12 * kc**4 * (1 - kc ** 2)* (-1 + kc**2))
+
+    C = cel(kc, 1.0, ap, bp)
+    
+    return kc * fac * C, fac * C
+
+# p = 1 and kc = 1 case 
+def cel_dk_dp_double_singular(kc, p, a, b, da, db, C, tol):
+
+    dk_dp = -(a + 3 * b) * jnp.pi / 16
+    return dk_dp, dk_dp
+
+    
+@cel.defjvp
 def cel_jvp(primals, tangents):  
 
     kc, p, a, b = primals
     kc_dot, p_dot, a_dot, b_dot = tangents
+
+    da = cel(kc, p, 1.0, 0.0)
+    db = cel(kc, p, 0.0, 1.0)
+
+    C = a * da + b * db
+
+    tol = 1e-8
+
+    conditions = jnp.array([
+        (jnp.abs(p - 1.0) < tol) & (jnp.abs(kc - 1.0) < tol),
+        jnp.abs(kc**2 - p) < tol,
+        True
+    ])
+
+    i = jnp.argwhere(conditions, size=1).squeeze()
+
+    dk, dp = jax.lax.switch(
+        i, 
+        [
+            cel_dk_dp_double_singular,
+            cel_dk_dp_singular,
+            cel_dk_dp_general
+        ],
+        kc, p, a, b, da, db, C, tol
+    )
+
+    return C, dk * kc_dot + dp * p_dot + da * a_dot + db * b_dot 
