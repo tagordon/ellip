@@ -696,7 +696,7 @@ def el3_jvp(primals, tangents):
     # is intentional here, since the sign of n 
     # is flipped between the def. of 
     # Pi in Bulirsch 1969 compared to the 
-    # standard definnition. 
+    # standard definition. 
     n = 1 - p
     k2 = 1 - kc**2
     kc2 = kc * kc
