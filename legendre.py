@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from bulirsch import *
+from carlson import *
 
 @jax.jit
 @jnp.vectorize
@@ -23,8 +23,8 @@ def ellipk(k):
        ``ellipk`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    return cel(kc, 1.0, 1.0, 1.0)
+    kc2 = 1 - k**2
+    return rf(0.0, kc2, 1.0)
 
 @jax.jit
 @jnp.vectorize
@@ -47,8 +47,8 @@ def ellipe(k):
        ``ellipe`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    return cel(kc, 1.0, 1.0, kc**2)
+    kc2 = 1 - k**2
+    return kc2 * (rd(0.0, kc2, 1.0) + rd(0.0, 1.0, kc2)) / 3.0
 
 @jax.jit
 @jnp.vectorize
@@ -72,8 +72,8 @@ def ellippi(n, k):
        ``ellippi`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    return cel(kc, n + 1, 1.0, 1.0)
+    kc2 = 1 - k**2
+    return n * rj(0.0, kc2, 1.0, 1 - n) / 3.0 + ellipk(k)
 
 @jax.jit
 @jnp.vectorize
@@ -97,9 +97,9 @@ def ellipfinc(phi, k):
        ``ellipfinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.tan(phi)
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    return el1(x, kc)
+    c = 1.0 / jnp.sin(phi)**2
+    return rf(c - 1, c - k**2, c)
+    
 
 @jax.jit
 @jnp.vectorize
@@ -123,9 +123,8 @@ def ellipeinc(phi, k):
        ``ellipeinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.tan(phi)
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    return el2(x, kc, 1.0, kc * kc)
+    c = 1.0 / jnp.sin(phi)**2
+    return rf(c - 1, c - k**2, c) - k**2 * rd(c - 1, c - k**2, c) / 3.0
 
 @jax.jit
 @jnp.vectorize
@@ -150,7 +149,5 @@ def ellippiinc(phi, k, n):
        ``ellippiinc`` requires `jax.config.update("jax_enable_x64", True)`
     """
 
-    x = jnp.tan(phi)
-    kc = jnp.sqrt((1 - k) * (1 + k))
-    p = n + 1
-    return el3(x, kc, p)
+    c = 1.0 / jnp.sin(phi)**2
+    return n * rj(c - 1, c - k**2, c, c - n) / 3.0 + ellipfinc(phi, k)
