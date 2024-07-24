@@ -694,13 +694,59 @@ def el2_jvp(primals, tangents):
 
     return el2(x, kc, a, b), dx * x_dot + dk * kc_dot + da * a_dot + db * b_dot
 
+def el3_dk_dn_singular(rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
+
+    denom = 1 / (3 * k2 * k * (1 - k2)**(3/2))
+    Efac = -k * (1 + k2) * denom
+    Ffac = -k * (-1 + k2) * denom
+    fac = k * (4 - k2 * (1 + k2) + k2 * (1 + k2) * (cosphi**2 - sinphi**2)) * 2 * sinphi * cosphi
+    fac /= 3 * jnp.sqrt(2) * k * (1 - k2)**(3/2) * (2 - k2 + k2 * (cosphi**2 - sinphi**2))**(3/2)
+
+    dk = Efac * E + Ffac * F + fac
+
+    Efac = 2 * jnp.sqrt(2) * (1 + k2) / k2
+    Ffac = 2 * jnp.sqrt(2) * (-1 + k2) / k2
+    fac = 2 * (-4 + k2 * (1 + k2)) * 2 * sinphi * cosphi - k2 * (1 + k2) * (4 * cosphi**3 * sinphi - 4 * cosphi * sinphi**3)
+    fac /= (2 - 2 * k2 * sinphi**2)**(3/2)
+
+    dn = -(Efac * E + Ffac * F + fac) / (6 * jnp.sqrt(2) * (-1 + k2)**2)
+    
+    return dk, dn
+
+def el3_dn_singular(rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
+
+    Efac = 2 * (1 + k2) 
+    Ffac = 2 * (-1 + k2)
+    fac = -2 * jnp.sqrt(1 - k2 * sinphi**2) * (1 + k2 + (-1 + k2) / cosphi**2) * sinphi / cosphi
+    return -(Efac * E + Ffac * F + fac) / (6 * (-1 + k2)**2)
+
+def el3_dn_general(rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
+
+    return (
+        E + (k2 - n) * F / n 
+        + (n**2 - k2) * Pi / n 
+        + n * cosphi * sinphi * rad / (n * sinphi**2 - 1)
+    ) / (2 * (k2 - n) * (n - 1))
+
+def el3_dk_dn_general(rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
+
+    fac = k2 * sinphi * cosphi / rad
+    dk = -kc * (-E / kc2 + Pi + fac / kc2) / (n - k2)
+
+    dn = jax.lax.cond(
+        jnp.abs(n - 1) < 1e-8, el3_dn_singular, el3_dn_general, 
+        rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi
+    )
+
+    return dk, dn
+
 @el3.defjvp
 def el3_jvp(primals, tangents):
 
     x, kc, p = primals
     x_dot, kc_dot, p_dot = tangents 
 
-    # note that 1 - p instead of p -1 
+    # note that 1 - p instead of p - 1 
     # is intentional here, since the sign of n 
     # is flipped between the def. of 
     # Pi in Bulirsch 1969 compared to the 
@@ -711,7 +757,7 @@ def el3_jvp(primals, tangents):
     k = jnp.sqrt(k2)
     cosphi = 1 / jnp.sqrt(1 + x**2)
     sinphi = x * cosphi
-    rad = jnp.sqrt(1 - k**2 * sinphi**2)
+    rad = jnp.sqrt(1 - k2 * sinphi**2)
     dx = 1 / (rad * (1 - n * sinphi**2) * (1 + x**2))
     
     E = el2(x, kc, 1.0, kc2)
@@ -719,15 +765,19 @@ def el3_jvp(primals, tangents):
     Pi = el3(x, kc, p)
 
     # potential issues with k^2 = n
-    fac = k2 * sinphi * cosphi / rad
-    dk = -kc * (-E / kc2 + Pi + fac / kc2) / (n - k2)
+    #fac = k2 * sinphi * cosphi / rad
+    #dk = -kc * (-E / kc2 + Pi + fac / kc2) / (n - k2)
+    dk, dn = jax.lax.cond(
+        jnp.abs(n - k2) < 1e-8, el3_dk_dn_singular, el3_dk_dn_general,
+        rad, n, k, kc, k2, kc2, E, F, Pi, cosphi, sinphi
+    )
 
     # potential issues with k^2 = n and n = 1
-    dn = (
-        E + (k2 - n) * F / n 
-        + (n - k) * (n + k) * Pi / n 
-        + n * cosphi * sinphi * rad / (n * sinphi**2 - 1)
-    ) / (2 * (k2 - n) * (n - 1))
+    #dn = (
+    #    E + (k2 - n) * F / n 
+    #    + (n**2 - k2) * Pi / n 
+    #    + n * cosphi * sinphi * rad / (n * sinphi**2 - 1)
+    #) / (2 * (k2 - n) * (n - 1))
 
     return Pi, dx * x_dot + dk * kc_dot + dn * p_dot
 
