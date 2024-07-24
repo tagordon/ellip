@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 maxiter = 6
+tol = 1e-8
 
 @jax.custom_jvp
 @jax.jit
@@ -655,17 +656,17 @@ def el1_jvp(primals, tangents):
     x, kc = primals
     x_dot, kc_dot = tangents 
 
-    k = jnp.sqrt(1 - kc**2)
+    k2 = 1 - kc**2
     cosphi = 1 / jnp.sqrt(1 + x**2)
     sinphi = x * cosphi
-    dx = 1 / (jnp.sqrt(1 - k**2 * sinphi**2) * (1 + x**2))
+    dx = 1 / (jnp.sqrt(1 - k2 * sinphi**2) * (1 + x**2))
 
     E = el2(x, kc, 1.0, kc**2)
     F = el1(x, kc)
     dk = -(
-        (E - kc**2 * F) / (k * kc) 
-        - k * sinphi * cosphi / (kc * jnp.sqrt(1 - k * k * sinphi**2))
-    ) / k 
+        (E - kc**2 * F) / (k2 * kc) 
+        - sinphi * cosphi / (kc * jnp.sqrt(1 - k2 * sinphi**2))
+    ) 
 
     return F, dx * x_dot + dk * kc_dot
 
@@ -677,7 +678,6 @@ def el2_jvp(primals, tangents):
 
     k2 = 1 - kc**2
     kc2 = kc * kc
-    k = jnp.sqrt(k2)
     cosphi = 1 / jnp.sqrt(1 + x**2)
     sinphi = x * cosphi
     rad = jnp.sqrt(1 - k2 * sinphi**2)
@@ -690,7 +690,7 @@ def el2_jvp(primals, tangents):
     da = F + (E - F) / k2
     db = (F - E) / k2
 
-    fac = k**2 * sinphi * cosphi / rad
+    fac = k2 * sinphi * cosphi / rad
     dk = (b - a) / k2 * (
         (1 + 1 / kc2) * E - 2 * F - fac / kc2
     ) + (a / kc2) * (E - kc2 * F - fac)
@@ -708,7 +708,7 @@ def el2_jvp(primals, tangents):
 
 def el3_dk_dn_singular(rad, n, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
 
-    denom = 1 / (3 * k2 * (1 - k2)**(3/2))
+    denom = 1 / (3 * k2 * (1 - k2)**1.5)
     Efac = -(1 + k2) * denom
     Ffac = (1 - k2) * denom
     fac = (
@@ -717,16 +717,17 @@ def el3_dk_dn_singular(rad, n, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
     ) * 2 * sinphi * cosphi
     fac /= 3 * jnp.sqrt(2) * (
         (k2 - 1) * (-2 + k2 - k2 * (cosphi**2 - sinphi**2))
-    )**(3/2)
-
+    )**1.5
+    
     dk = Efac * E + Ffac * F + fac
 
-    Efac = 2 * jnp.sqrt(2) * (1 + k2) / k2
-    Ffac = 2 * jnp.sqrt(2) * (-1 + k2) / k2
+    fac_2r2 = 2 * jnp.sqrt(2) / k2
+    Efac = fac_2r2 * (1 + k2)
+    Ffac = fac_2r2 * (-1 + k2)
     fac = 2 * (-4 + k2 * (1 + k2)) * 2 * sinphi * cosphi - k2 * (1 + k2) * (
         4 * cosphi**3 * sinphi - 4 * cosphi * sinphi**3
     )
-    fac /= (2 - 2 * k2 * sinphi**2)**(3/2)
+    fac /= (2 - 2 * k2 * sinphi**2)**1.5
 
     dn = -(
         Efac * E + Ffac * F + fac
@@ -762,7 +763,7 @@ def el3_dk_dn_general(rad, n, kc, k2, kc2, E, F, Pi, cosphi, sinphi):
     ) / (n - k2)
 
     dn = jax.lax.cond(
-        jnp.abs(n - 1) < 1e-8, 
+        jnp.abs(n - 1) < tol, 
         el3_dn_singular, 
         el3_dn_general, 
         rad, n, kc, k2, kc2, 
@@ -787,7 +788,6 @@ def el3_jvp(primals, tangents):
     n = 1 - p
     k2 = 1 - kc**2
     kc2 = kc * kc
-    #k = jnp.sqrt(k2)
     cosphi = 1 / jnp.sqrt(1 + x**2)
     sinphi = x * cosphi
     rad = jnp.sqrt(1 - k2 * sinphi**2)
@@ -798,7 +798,7 @@ def el3_jvp(primals, tangents):
     Pi = el3(x, kc, p)
 
     dk, dn = jax.lax.cond(
-        jnp.abs(n - k2) < 1e-8, 
+        jnp.abs(n - k2) < tol, 
         el3_dk_dn_singular, 
         el3_dk_dn_general,
         rad, n, kc, k2, kc2, 
@@ -813,53 +813,53 @@ def el3_jvp(primals, tangents):
         + dn * p_dot
     )
 
-def cel_dp_general(kc, p, a, b, db):
+def cel_dp_general(kc, kc2, p, a, b, db):
 
     lam = (
-        kc * kc * (b + a * p - 2 * b * p) 
+        kc2 * (b + a * p - 2 * b * p) 
         + p * (3 * b * p - a * p**2 - 2*b)
     )
     
     dp = (
         lam * db 
-        + (b - a * p) * cel(kc, 1.0, 1.0 - p, kc * kc - p)
+        + (b - a * p) * cel(kc, 1.0, 1.0 - p, kc2 - p)
     )
     
-    return  dp / (2 * p * (1 - p) * (p - kc * kc))
+    return  dp / (2 * p * (1 - p) * (p - kc2))
 
 # p = 1 case
-def cel_dp_singular(kc, p, a, b, db):
+def cel_dp_singular(kc, kc2, p, a, b, db):
 
-    ap = (a - b) * (kc**2 - 1)
-    bp = - ((kc**2 - 1) * (-3 * b + (a + 2 * b) * kc**2))
-    return cel(kc, 1.0, ap, bp) / (3 * (kc**2 - 1)**2)
+    ap = (a - b) * (kc2 - 1)
+    bp = - ((kc2 - 1) * (-3 * b + (a + 2 * b) * kc2))
+    return cel(kc, 1.0, ap, bp) / (3 * (kc2 - 1)**2)
 
-def cel_dk_dp_general(kc, p, a, b, da, db, C, tol):
+def cel_dk_dp_general(kc, kc2, p, a, b, da, db, C, tol):
 
-    dk = -kc / (p - kc * kc) * (cel(kc, kc**2, a, b) - C)
+    dk = -kc / (p - kc2) * (cel(kc, kc2, a, b) - C)
 
     dp = jax.lax.cond(
         jnp.abs(p - 1.0) < tol, 
         cel_dp_singular, 
         cel_dp_general, 
-        kc, p, a, b, db
+        kc, kc2, p, a, b, db
     )
     
     return dk, dp
 
 # kc^2 = p case 
-def cel_dk_dp_singular(kc, p, a, b, da, db, C, tol):
+def cel_dk_dp_singular(kc, kc2, p, a, b, da, db, C, tol):
 
-    ap = 4 * (kc**2 - 1) * (2 * b + (a - 3 * b) * kc**2)
-    bp = 4 * kc**2 * (kc**2 - 1) * (b - a * kc**2)
-    fac = -1 / (12 * kc**4 * (1 - kc**2)* (kc**2 - 1))
+    ap = 4 * (kc2 - 1) * (2 * b + (a - 3 * b) * kc2)
+    bp = 4 * kc2 * (kc2 - 1) * (b - a * kc2)
+    fac = -1 / (12 * kc2**2 * (1 - kc2)* (kc2 - 1))
 
     C = cel(kc, 1.0, ap, bp)
     
     return kc * fac * C, fac * C
 
 # p = 1 and kc = 1 case 
-def cel_dk_dp_double_singular(kc, p, a, b, da, db, C, tol):
+def cel_dk_dp_double_singular(kc, kc2, p, a, b, da, db, C, tol):
 
     dk_dp = -(a + 3 * b) * jnp.pi / 16
     return dk_dp, dk_dp
@@ -871,16 +871,16 @@ def cel_jvp(primals, tangents):
     kc, p, a, b = primals
     kc_dot, p_dot, a_dot, b_dot = tangents
 
+    kc2 = kc * kc
+
     da = cel(kc, p, 1.0, 0.0)
     db = cel(kc, p, 0.0, 1.0)
 
     C = a * da + b * db
 
-    tol = 1e-8
-
     conditions = jnp.array([
         (jnp.abs(p - 1.0) < tol) & (jnp.abs(kc - 1.0) < tol),
-        jnp.abs(kc**2 - p) < tol,
+        jnp.abs(kc2 - p) < tol,
         True
     ])
 
@@ -893,7 +893,7 @@ def cel_jvp(primals, tangents):
             cel_dk_dp_singular,
             cel_dk_dp_general
         ],
-        kc, p, a, b, da, db, C, tol
+        kc, kc2, p, a, b, da, db, C, tol
     )
 
     return C, dk * kc_dot + dp * p_dot + da * a_dot + db * b_dot 
